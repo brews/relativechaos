@@ -14,7 +14,9 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
-    - name: Setup
+    - name: Install system dependencies
+      run: sudo apt-get install -y libwayland-dev
+    - name: Setup rust tooling
       run: |
         rustup update stable
         cargo install cargo-tarpaulin
