@@ -15,7 +15,9 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     - name: Install system dependencies
-      run: sudo apt-get install -y libwayland-dev
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libwayland-dev libasound2-dev pkg-config
     - name: Setup rust tooling
       run: |
         rustup update stable
