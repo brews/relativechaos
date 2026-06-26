@@ -14,12 +14,18 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
+    
     - name: Install system dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y libwayland-dev libasound2-dev pkg-config
+        sudo apt-get install -y libwayland-dev libasound2-dev libudev-dev pkg-config
+
     - name: Setup rust tooling
       run: |
         rustup update stable
+        
+    - name: Rust Cache
+      uses: Swatinem/rust-cache@v2
+      
     - name: Build
       run: cargo build --verbose
