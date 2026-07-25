@@ -28,6 +28,7 @@ fn main() {
         .add_systems(Update, input_system)
         .add_systems(Update, leftwalker)
         .add_systems(Startup, add_characters)
+        .add_observer(player_mover)
         .run();
 }
 
@@ -77,15 +78,65 @@ fn render_system(
     Ok(())
 }
 
-/// System detecting user input, such as key presses.
+/// System detecting user input such as key presses.
 ///
 /// Run on Update schedule.
-fn input_system(mut messages: MessageReader<KeyMessage>, mut exit: MessageWriter<AppExit>) {
-    for message in messages.read() {
-        if let KeyCode::Char('q') = message.code {
-            exit.write_default();
-        }
+fn input_system(
+    mut commands: Commands,
+    mut keyboard_message: MessageReader<KeyMessage>,
+    mut exit: MessageWriter<AppExit>,
+) {
+    keyboard_message
+        .read()
+        .for_each(|message| match message.code {
+            KeyCode::Char('q') => _ = exit.write_default(),
+            KeyCode::Up => commands.trigger(TryMovePlayer(Direction::Up)),
+            KeyCode::Down => commands.trigger(TryMovePlayer(Direction::Down)),
+            KeyCode::Left => commands.trigger(TryMovePlayer(Direction::Left)),
+            KeyCode::Right => commands.trigger(TryMovePlayer(Direction::Right)),
+            _ => {}
+        });
+}
+
+/// Event indicating the player entity is attempting to move in a direction.
+#[derive(Event)]
+struct TryMovePlayer(Direction);
+
+/// Movement of an entity in one of the four cardinal directions.
+#[derive(PartialEq, Debug)]
+enum Direction {
+    /// Movement "north", towards the top of the map.
+    Up,
+    /// Movement "south", towards the bottom of the map.
+    Down,
+    /// Movement "west", to port.
+    Left,
+    /// Movement "east", to starboard.
+    Right,
+}
+
+/// Observer to handle player movement events, changing the player's position, if possible.
+///
+/// This changes map position based on the direction the player is attempting to move, but
+/// prevents movement if there is an obstruction or map edge.
+fn player_mover(attempted_move: On<TryMovePlayer>, mut player: Query<&mut Position, With<Player>>) {
+    let mut player_position = player
+        .single_mut()
+        .expect("Either none or multiple players exist in the world and this should never happen");
+
+    // Translate direction into velocity.
+    let mut delta_x: i32 = 0;
+    let mut delta_y: i32 = 0;
+    match attempted_move.0 {
+        Direction::Up => delta_y = 1,
+        Direction::Down => delta_y = -1,
+        Direction::Left => delta_x = -1,
+        Direction::Right => delta_x = 1,
     }
+
+    // Apply velocity to change the player's position, but only within map's bounds.
+    player_position.y = (player_position.y + delta_y).clamp(0, WORLD_Y - 1);
+    player_position.x = (player_position.x + delta_x).clamp(0, WORLD_X - 1);
 }
 
 /// Component for entities that have a position on the map.
@@ -110,6 +161,10 @@ struct Renderable {
 #[derive(Component)]
 struct LeftMover;
 
+/// Component indicating the entity is the player character.
+#[derive(Component, Debug)]
+struct Player;
+
 #[derive(Component)]
 struct Person;
 
@@ -131,7 +186,9 @@ fn add_characters(mut commands: Commands) {
             color: Color::Yellow,
         },
         Position { x: 40, y: 25 },
+        Player,
     ));
+
     // Spawn some intimidating looking characters.
     for i in 0..10 {
         commands.spawn((
