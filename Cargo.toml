@@ -7,6 +7,7 @@ edition = "2024"
 bevy = "0.19.0"
 bevy_ratatui = { git = "https://github.com/brews/bevy_ratatui.git", branch = "bevy_bump", version = "0.11.1" }
 crossterm = "0.29.0"
+rand = "0.10.2"
 ratatui = "0.30.2"
 
 # Enable a small amount of optimization in the dev profile.

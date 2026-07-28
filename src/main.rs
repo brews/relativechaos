@@ -3,6 +3,7 @@ use bevy::prelude::*;
 use bevy_ratatui::event::KeyMessage;
 use bevy_ratatui::{RatatuiContext, RatatuiPlugins};
 use crossterm::event::KeyCode;
+use rand::RngExt;
 use ratatui::layout::{Constraint, Layout};
 use ratatui::prelude::Color;
 use ratatui::style::Stylize;
@@ -29,6 +30,7 @@ fn main() {
         .add_systems(Update, leftwalker)
         .add_systems(Startup, add_characters)
         .add_observer(player_mover)
+        .init_resource::<Map>()
         .run();
 }
 
@@ -257,3 +259,56 @@ impl Plugin for HelloPlugin {
 
 #[derive(Resource)]
 struct GreetTimer(Timer);
+
+/// Individual map tile types.
+#[derive(PartialEq, Clone)]
+enum MapTile {
+    Wall,
+    Floor,
+}
+
+#[derive(Resource)]
+struct Map(Vec<MapTile>);
+
+impl FromWorld for Map {
+    fn from_world(_world: &mut World) -> Self {
+        generate_map()
+    }
+}
+
+/// Translate position x, y grid coordinates to index to the corresponding map tile.
+fn xy2idx(x: i32, y: i32) -> usize {
+    ((y * WORLD_X) + x) as usize
+}
+
+/// Use thread-local RNG to generate a map.
+fn generate_map() -> Map {
+    // This is straight from Wolverson 2019, section 3.2.
+    let mut map = vec![MapTile::Floor; (WORLD_X * WORLD_Y) as usize];
+
+    // Boundary walls
+    for x in 0..WORLD_X {
+        map[xy2idx(x, 0)] = MapTile::Wall;
+        map[xy2idx(x, WORLD_Y - 1)] = MapTile::Wall;
+    }
+    for y in 0..WORLD_Y {
+        map[xy2idx(0, y)] = MapTile::Wall;
+        map[xy2idx(WORLD_X - 1, y)] = MapTile::Wall;
+    }
+
+    // Randomly add some walls.
+    let mut rng = rand::rng();
+    for _ in 0..400 {
+        let x = rng.random_range(0..(WORLD_X - 1));
+        let y = rng.random_range(0..(WORLD_Y - 1));
+        let idx = xy2idx(x, y);
+        map[idx] = MapTile::Wall;
+    }
+
+    // Always make player starting position a floor, so player doesn't spawn in a wall.
+    // Player character starting map index in middle of map.
+    let starting_idx = xy2idx(WORLD_X / 2, WORLD_Y / 2);
+    map[starting_idx] = MapTile::Floor;
+
+    Map(map)
+}
