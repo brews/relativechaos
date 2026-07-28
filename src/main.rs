@@ -27,7 +27,6 @@ fn main() {
         ))
         .add_systems(Update, render_system)
         .add_systems(Update, input_system)
-        .add_systems(Update, leftwalker)
         .add_systems(Startup, add_characters)
         .add_observer(player_mover)
         .init_resource::<Map>()
@@ -39,6 +38,7 @@ fn main() {
 /// Run on Update schedule.
 fn render_system(
     mut context: ResMut<RatatuiContext>,
+    map: Res<Map>,
     query: Query<(&Renderable, &Position)>,
 ) -> Result {
     context.draw(|frame| {
@@ -66,6 +66,31 @@ fn render_system(
             .x_bounds([0.0, WORLD_X as f64])
             .y_bounds([0.0, WORLD_Y as f64])
             .paint(|ctx| {
+                // First render the map.
+                let mut y = 0;
+                let mut x = 0;
+                for tile in map.0.iter() {
+                    // Render map tile based on type.
+                    match tile {
+                        MapTile::Floor => {
+                            ctx.marker(Marker::Custom('.'));
+                            ctx.draw(&Points::new(&[(x as f64, y as f64)], Color::Gray))
+                        }
+                        MapTile::Wall => {
+                            ctx.marker(Marker::Custom('#'));
+                            ctx.draw(&Points::new(&[(x as f64, y as f64)], Color::LightGreen))
+                        }
+                    }
+
+                    // Advance map x,y coords.
+                    x += 1;
+                    if x > (WORLD_X - 1) {
+                        x = 0;
+                        y += 1;
+                    }
+                }
+
+                // Now render everthing "renderable"
                 query.iter().for_each(|(renderable, position)| {
                     ctx.marker(Marker::Custom(renderable.glyph));
                     ctx.draw(&Points::new(
@@ -121,7 +146,11 @@ enum Direction {
 ///
 /// This changes map position based on the direction the player is attempting to move, but
 /// prevents movement if there is an obstruction or map edge.
-fn player_mover(attempted_move: On<TryMovePlayer>, mut player: Query<&mut Position, With<Player>>) {
+fn player_mover(
+    attempted_move: On<TryMovePlayer>,
+    mut player: Query<&mut Position, With<Player>>,
+    map: Res<Map>,
+) {
     let mut player_position = player
         .single_mut()
         .expect("Either none or multiple players exist in the world and this should never happen");
@@ -136,9 +165,13 @@ fn player_mover(attempted_move: On<TryMovePlayer>, mut player: Query<&mut Positi
         Direction::Right => delta_x = 1,
     }
 
-    // Apply velocity to change the player's position, but only within map's bounds.
-    player_position.y = (player_position.y + delta_y).clamp(0, WORLD_Y - 1);
-    player_position.x = (player_position.x + delta_x).clamp(0, WORLD_X - 1);
+    let destination_idx = xy2idx(player_position.x + delta_x, player_position.y + delta_y);
+    // Only allow move if destination is not a wall.
+    if map.0[destination_idx] != MapTile::Wall {
+        // Apply velocity to change the player's position, but only within map's bounds.
+        player_position.y = (player_position.y + delta_y).clamp(0, WORLD_Y - 1);
+        player_position.x = (player_position.x + delta_x).clamp(0, WORLD_X - 1);
+    }
 }
 
 /// Component for entities that have a position on the map.
@@ -158,10 +191,6 @@ struct Renderable {
     /// Color of the rendered glyph.
     color: Color,
 }
-
-/// Component flagging entities that move leftwise.
-#[derive(Component)]
-struct LeftMover;
 
 /// Component indicating the entity is the player character.
 #[derive(Component, Debug)]
@@ -191,17 +220,6 @@ fn add_characters(mut commands: Commands) {
         Player,
     ));
 
-    // Spawn some intimidating looking characters.
-    for i in 0..10 {
-        commands.spawn((
-            Renderable {
-                glyph: '☺',
-                color: Color::Red,
-            },
-            Position { x: i * 7, y: 20 },
-            LeftMover {},
-        ));
-    }
     commands.spawn((Person, Name("Elaina Proctor".to_string())));
     commands.spawn((Person, Name("Renzo Hume".to_string())));
     commands.spawn((Person, Name("Zayna Nieves".to_string())));
@@ -235,16 +253,6 @@ fn update_people(mut query: Query<&mut Name, With<Person>>) {
             break; // no need to change other names.
         }
     }
-}
-
-/// System moving [LeftMover] entities to the left.
-fn leftwalker(mut query: Query<&mut Position, With<LeftMover>>) {
-    query.iter_mut().for_each(|mut component| {
-        component.x -= 1;
-        if component.x < 0 {
-            component.x = WORLD_X - 1;
-        }
-    })
 }
 
 pub struct HelloPlugin;
