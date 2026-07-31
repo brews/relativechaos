@@ -25,9 +25,9 @@ fn main() {
             RatatuiPlugins::default(),
             // HelloPlugin,
         ))
-        .add_systems(Update, render_system)
-        .add_systems(Update, input_system)
         .add_systems(Startup, add_characters)
+        .add_systems(PreUpdate, input_system)
+        .add_systems(PostUpdate, render_system)
         .add_observer(player_mover)
         .init_resource::<Map>()
         .run();
@@ -35,7 +35,7 @@ fn main() {
 
 /// System to render the UI.
 ///
-/// Run on Update schedule.
+/// Run on PostUpdate schedule.
 fn render_system(
     mut context: ResMut<RatatuiContext>,
     map: Res<Map>,
@@ -43,8 +43,10 @@ fn render_system(
 ) -> Result {
     context.draw(|frame| {
         // Screen layouts for UI.
-        let horizontal = Layout::horizontal([Constraint::Percentage(100)]).spacing(1);
-        let vertical = Layout::vertical([Constraint::Length(1), Constraint::Fill(1)]).spacing(1);
+        let horizontal = Layout::horizontal([Constraint::Length(WORLD_X as u16)]).spacing(1);
+        let vertical =
+            Layout::vertical([Constraint::Length(1), Constraint::Length(WORLD_Y as u16)])
+                .spacing(1);
         let [top, main] = frame.area().layout(&vertical);
         let [area] = main.layout(&horizontal);
 
@@ -107,7 +109,7 @@ fn render_system(
 
 /// System detecting user input such as key presses.
 ///
-/// Run on Update schedule.
+/// Run on PreUpdate schedule.
 fn input_system(
     mut commands: Commands,
     mut keyboard_message: MessageReader<KeyMessage>,
